@@ -5,12 +5,12 @@ iDecimal v0.0.1
 ### In This Documentation
 [1. API](#api)<br/>
 &nbsp;[Constructor](#constructor)<br/>
-&emsp;[iDecimal(num)](#idecimal(num))<br/>
+&emsp;[iDecimal(num)](#idecimalnum)<br/>
 &nbsp;[Function Properties](#function-properties)<br/>
 &emsp;[iDecimal.add(opr1, opr2)](#idecimaladdopr1-opr2)<br/>
-&emsp;[iDecimal.minus/sub(minuend, subtractor)](#idecimalminusminuend-subtractor--idecimalsubminuend-subtractor))<br/>
-&emsp;[iDecimal.mul(opr1, opr2)](idecimalmulopr1-opr2)<br/>
-&emsp;[iDecimal.div(dividend, divisor)](idecimaldivdividend-divisor)<br/>
+&emsp;[iDecimal.minus/sub(minuend, subtractor)](#idecimalminussubminuend-subtractor))<br/>
+&emsp;[iDecimal.mul(opr1, opr2)](#idecimalmulopr1-opr2)<br/>
+&emsp;[iDecimal.div(dividend, divisor)](#idecimaldivdividend-divisor)<br/>
 ## API
 ### Constructor
 #### `iDecimal(num)`
