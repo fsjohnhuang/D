@@ -17,11 +17,15 @@
     }
   }
   
-  factory(function(name){return _deps[name]}, window)
+  factory(function(name){return _deps[name]}, _deps["main"] = {})
+  for (var k in _deps["main"]){
+    window[k] = _deps["main"][k]
+  }
 }(function (require, exports){
   var VERSION = "0.0.1"
   var utils = require("utils")
   var calc = require("calc")
+  var cfg = require("global").cfg
 
   var iDecimal = function(num){
     if (this instanceof iDecimal);else return new iDecimal(num)
@@ -57,7 +61,7 @@
     
     return utils.normalize(sum)
   }
-  iDecimal.sub = function(minuend, subtractor){
+  iDecimal.minus = iDecimal.sub = function(minuend, subtractor){
     minuend = iDecimal(minuend).struct()
     subtractor = iDecimal(subtractor).struct()
     subtractor.s *= -1
@@ -66,6 +70,21 @@
     var sum = calc.addSignificant(minuend, subtractor)
     
     return utils.normalize(sum)
+  }
+  iDecimal.mul = function(opr1, opr2){
+    opr1 = iDecimal(opr1).struct()
+    opr2 = iDecimal(opr2).struct()
+
+    var rs = opr1.rs + opr2.rs
+    var dObj = calc.mulSignificant(opr1.m, opr2.m)
+    rs += (cfg.digit - (dObj.struct().rs + rs)%cfg.digit)%cfg.digit
+
+    var struct = iDecimal({s: opr1.s*opr2.s, rs: rs, m:dObj.struct().m}).struct()
+
+    return utils.normalize(struct)
+  }
+  iDecimal.div = function(dividend, divisor){
+    // TODO
   }
 
   exports.iDecimal = iDecimal
@@ -127,7 +146,7 @@
     result = result.reverse().join('').replace(/^0*/g,'')
     var dVal = struct.rs - result.length
     if (dVal > 0){
-      result = (0).toPrecision(dVal) + result
+      result = (0).toPrecision(dVal) + (dVal === 1 ? '.' : '') + result
     }
     else if (struct.rs){
       dVal *= -1
@@ -212,6 +231,24 @@
 	    rs: opr1.rs,
 	    m: sum
     }
+  }
+  exports.mulSignificant = function(m1, m2){
+    var factors = []
+    for (var i = 0, l = m1.length; i < l; ++i){
+      for (var j = 0, jl = m2.length; j < jl; ++j){
+	var strProduct = mul(m1[i], i, m2[j], j)
+ 	factors.push(require("main").iDecimal(strProduct))       
+      }
+    }
+
+    var sum = factors[0] || require("main").iDecimal(0)
+    for (var i = 1, l = factors.length; i < l; ++i){
+      sum = require("main").iDecimal.add(sum, factors[i])
+    }
+    return sum
+  }
+  var mul = function(n1, i1, n2, i2){
+    return (n1 * n2).toString() + utils.paddingZero(cfg.digit*(i1 + i2))
   }
 }, 
 "global": {

@@ -148,4 +148,24 @@ describe("iDecimal", function(){
       })
     })
   })
+  describe("iDecimal.mul(minuend, substractor)", function(){
+    describe("args is Number type", function(){
+      it("iDecimal.mul(0.1, -0.2)", function(){
+        var expM = [20000], expRs = 5, expS = -1
+        var d = iDecimal.mul(0.1, -0.2).struct()
+        var m = d.m, rs = d.rs, s = d.s
+        expect(m).to.deep.equal(expM)
+        expect(rs).to.be.equal(expRs)
+        expect(s).to.be.equal(s)
+      })
+      it("iDecimal.mul(0.7, 180)", function(){
+        var expM = [126], expRs = 0, expS = 1
+        var d = iDecimal.mul(0.7, 180).struct()
+        var m = d.m, rs = d.rs, s = d.s
+        expect(m).to.deep.equal(expM)
+        expect(rs).to.be.equal(expRs)
+        expect(s).to.be.equal(s)
+      })
+    })
+  })
 }) 
