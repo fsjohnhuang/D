@@ -1,0 +1,25 @@
+{
+  "name": "iDecimal",
+  "version": "0.0.1",
+  "description": "iDecimal v0.0.1\r =======\r **iDecimal** is a standalone decimal library which to solve the problems like 0.2 + 0.1 === 0.30000000000000004.",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fsjohnhuang/iDecimal.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/fsjohnhuang/iDecimal/issues"
+  },
+  "homepage": "https://github.com/fsjohnhuang/iDecimal#readme",
+  "devDependencies":{
+    "chai": "^1.10.0",
+    "mocha": "^2.1.0"
+  }
+}

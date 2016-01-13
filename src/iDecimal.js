@@ -17,8 +17,7 @@
     }
   }
   
-  factory(function(name){return _deps[name]}
-	  , window)
+  factory(function(name){return _deps[name]}, window)
 }(function (require, exports){
   var VERSION = "0.0.1"
   var utils = require("utils")
@@ -38,26 +37,17 @@
     }
   }
   iDecimal.prototype.toString = function(){
-    var struct = this.struct()
-    var result = []
-    for (var i = 0; i < struct.m.length; ++i){
-      result.push(struct.m[i])
-    }
-    result = result.join('')
-    var dVal = struct.rs - result.length
-    if (dVal > 0){
-      result = (0).toPrecision(dVal) + result
-    }
-    else{
-      dVal *= -1
-      result = result.substr(0, dVal) + '.' + result.substr(dVal)
-    }
-    if (result[0] === '.'){
-      result = '0' + result
-    }
-    return (struct.s < 0 ? '-' : '') + result
+    return utils.toString(this.struct())
+  }
+  iDecimal.prototype.valueOf = function(){
+    return utils.valueOf(this.toString())
   }
 
+  iDecimal.config = function(cfg){
+    for (var k in cfg){
+      require('global').cfg[k] = cfg[k]
+    }
+  }
   iDecimal.add = function(opr1, opr2){
     opr1 = iDecimal(opr1).struct()
     opr2 = iDecimal(opr2).struct()
@@ -65,14 +55,23 @@
     calc.matchExp(opr1, opr2)
     var sum = calc.addSignificant(opr1, opr2)
     
-    return iDecimal(sum)
+    return utils.normalize(sum)
   }
-  iDecimal.sub = function(minuend, subtractor){}
+  iDecimal.sub = function(minuend, subtractor){
+    minuend = iDecimal(minuend).struct()
+    subtractor = iDecimal(subtractor).struct()
+    subtractor.s *= -1
+
+    calc.matchExp(minuend, subtractor)
+    var sum = calc.addSignificant(minuend, subtractor)
+    
+    return utils.normalize(sum)
+  }
 
   exports.iDecimal = iDecimal
 }, 
 {"utils": function(require, exports){
-  var sLen = require("global").sLen
+  var cfg = require("global").cfg
 
   var structure = exports.structure = function(num){
     return structure[typeof(num)](num)
@@ -81,20 +80,24 @@
     return structure['string'](String(num))
   }
   structure["string"] = function(num){
-    num = num.replace(/^[\s]u3000]*|[\s]u3000]*$/g, '')
+    num = num.replace(/^[0\s\u3000]*|[\s\u3000]*$/g, '')
     var pIdx = num.indexOf('.')
-    var strNum = num.replace(/[-+.]/g, '')
+    var strNum = num.replace(/[-+.]/g, '').replace(/^0*/g, '')
+    var rs = pIdx === -1 ? 0 : num.length - pIdx - 1
+        , additionalRs = 0
+    // 格式化为rs === n*cfg.digit
+    strNum += paddingZero(additionalRs = (cfg.digit - rs%cfg.digit)%cfg.digit)
+    strNum = strNum.split('').reverse()
     var m = [], 
     	times = strNum.length / 5, 
-	additionE = 0,
-	len = strNum.length
-    for (var i = times - 1; i >= 0; ++i){
-      m.push(strNum.slice(len - i*sLen, additionE > 0 ? len : (i+1)*sLen) 
-		      + paddingZero(additionE))
+	len = null
+    // 采用little-Endian字节序方式存储有效数
+    for (var i = 0; i < times; ++i){
+      m.push(parseInt(strNum.splice(0, cfg.digit).reverse().join('')))
     }
     return {
 	    s: /^-/.test(num) ? -1 : 1,
-	    rs: num.length - pIdx - 1 + additionE,
+	    rs: rs + additionalRs,
 	    m: m
     }
   }
@@ -111,42 +114,64 @@
     return (0).toPrecision(count).replace('.', '')
   }
 
+  var normalize = exports.normalize = function(struct){
+    return iDecimal(toString(struct))
+  }
+
+  var toString = exports.toString = function(struct){
+    var result = []
+    for (var i = 0; i < struct.m.length; ++i){
+      var m = struct.m[i] + ''
+      result.push(paddingZero(cfg.digit - m.length) + m)
+    }
+    result = result.reverse().join('').replace(/^0*/g,'')
+    var dVal = struct.rs - result.length
+    if (dVal > 0){
+      result = (0).toPrecision(dVal) + result
+    }
+    else if (struct.rs){
+      dVal *= -1
+      result = result.substr(0, dVal) + '.' + result.substr(dVal)
+    }
+    if (result[0] === '.'){
+      result = '0' + result
+    }
+    result = (struct.s < 0 ? '-' : '') + result
+    return result.indexOf('.') === -1 ? result
+    				      : result.replace(/0*$/g, '')
+  }
+  var valueOf = exports.valueOf = function(val){
+    return Number(val)
+  }
 },
 "calc": function(require, exports){
   var utils = require("utils")
-  var sLen = require("global").sLen
+  var cfg = require("global").cfg
 
   exports.matchExp = function(opr1, opr2){
     var maxRs = Math.max(opr1.rs, opr2.rs)
-    if (maxRs - opr1.rs){
-    	opr1.m.push(parseInt(utils.paddingZero(maxRs - opr1.rs)))
-    }
-    if (maxRs - opr2.rs){
-    	opr2.m.push(parseInt(utils.paddingZero(maxRs - opr1.rs)))
+    for (var i = 0, len = arguments.length; i < len; ++i){
+      for (var j = 0, append = (maxRs - arguments[i].rs) / cfg.digit; j < append; ++j){
+        arguments[i].m.unshift(0)
+      }
     }
     opr1.rs = opr2.rs = maxRs
   }
-  exports.addSignificant = function(opr1, opr2){
-    var cf = 0, sum = [], ceil = parseInt('1' + utils.paddingZero(sLen)), floor = 0
-    var s1 = opr1.s, 
-	s2 = opr2.s, 
-        m1 = opr1.m.reverse(),
-        m2 = opr2.m.reverse()
+  var addSignificant = exports.addSignificant = function(opr1, opr2){
+    return addSignificant[opr1.s*opr2.s](opr1, opr2)
+  }
+  addSignificant["1"] = function(opr1, opr2){
+    var cf = 0, sum = [], ceil = parseInt('1' + utils.paddingZero(cfg.digit)), floor = 0
+    var s1 = opr1.s,
+	s2 = opr2.s,
+        m1 = opr1.m,
+        m2 = opr2.m
     var l = Math.max(m1.length, m2.length)
     var m = null, s = s1
     for (var i = 0; i < l; ++i){
-      if (!m1[i]) m1.push(0)
-      if (!m2[i]) m2.push(0)
+      m = s1*(m1[i]||0) + s2*(m2[i]||0) + s2*cf
 
-      if (m1[i] < (m2[i] + s2*cf) && s1 !== s2){
-        cf = -1
-	m = s1*Math.pow(10, sLen) + m1[i] + s2*m2[i] + s1*cf
-      }
-      else{
-      	m = s1*m1[i] + s2*m2[i] + s2*cf
-      }
-
-      if (m >= s1*ceil){
+      if (Math.abs(m) >= ceil){
       	cf = 1
       }
       else if (s1*m < floor){
@@ -159,10 +184,38 @@
     return {
 	    s: s,
 	    rs: opr1.rs,
-	    m: m
+	    m: sum
+    }
+  }
+  addSignificant["-1"] = function(opr1, opr2){
+    var s1,s2,m1,m2
+    var dVal = opr1.m.length - opr2.m.length
+    if (!dVal){
+      dVal = opr1.m[opr1.m.length - 1] - opr2.m[opr2.m.length - 1]
+    }
+    s1 = arguments[dVal >= 0 ? 0 : 1].s
+    m1 = arguments[dVal >= 0 ? 0 : 1].m
+    m2 = arguments[dVal >= 0 ? 1 : 0].m
+
+    var cf = 0, m = 0, sum = []
+    for (var i = 0, len = m1.length; i < len; ++i){
+      m = m1[i] - (m2[i]||0) + cf
+      if (m < 0){
+	m = Math.pow(10, cfg.digit) + m1[i] - (m2[i]||0) + cf
+        cf = -1
+      }
+      sum.push(m)
+    }
+
+    return {
+	    s: s1,
+	    rs: opr1.rs,
+	    m: sum
     }
   }
 }, 
 "global": {
-  sLen: 5
+  cfg: {
+    digit: 5 // 位数
+  }
 }}, ["global", "utils", "calc"]))
