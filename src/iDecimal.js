@@ -27,6 +27,12 @@
   var calc = require("calc")
   var cfg = require("global").cfg
 
+  /* 构造函数
+   * @constructor
+   * @public
+   * @param {Number|DOMString} num - The raw number value, excludes scientific notation
+   * @returns {iDecimal}
+   */
   var iDecimal = function(num){
     if (this instanceof iDecimal);else return new iDecimal(num)
     
@@ -41,18 +47,44 @@
       }
     }
   }
+
+  /* 字符串输出
+   * @method
+   * @public
+   * @returns {DOMString}
+   */
   iDecimal.prototype.toString = function(){
     return utils.toString(this.struct())
   }
+  /* 数值输出
+   * @method
+   * @public
+   * @returns {number}
+   */
   iDecimal.prototype.valueOf = function(){
     return utils.valueOf(this.toString())
   }
 
+
+  /* 设置全局配置信息
+   * @method
+   * @public
+   * @static
+   * @param {POJO} - cfg
+   */
   iDecimal.config = function(cfg){
     for (var k in cfg){
       require('global').cfg[k] = cfg[k]
     }
   }
+  /* 加法
+   * @method
+   * @public
+   * @static
+   * @param {Number|DOMString|iDecimal|structPOJO} opr1
+   * @param {Number|DOMString|iDecimal|structPOJO} opr2
+   * @returns {iDecimal}
+   */
   iDecimal.add = function(opr1, opr2){
     opr1 = iDecimal(opr1).struct()
     opr2 = iDecimal(opr2).struct()
@@ -62,6 +94,14 @@
     
     return utils.normalize(sum)
   }
+  /* 减法
+   * @method
+   * @public
+   * @static
+   * @param {Number|DOMString|iDecimal|structPOJO} minuend
+   * @param {Number|DOMString|iDecimal|structPOJO} substractor 
+   * @returns {iDecimal}
+   */
   iDecimal.minus = iDecimal.sub = function(minuend, subtractor){
     minuend = iDecimal(minuend).struct()
     subtractor = iDecimal(subtractor).struct()
@@ -72,6 +112,14 @@
     
     return utils.normalize(sum)
   }
+  /* 乘法
+   * @method
+   * @public
+   * @static
+   * @param {Number|DOMString|iDecimal|structPOJO} opr1
+   * @param {Number|DOMString|iDecimal|structPOJO} opr2 
+   * @returns {iDecimal}
+   */
   iDecimal.mul = function(opr1, opr2){
     opr1 = iDecimal(opr1).struct()
     opr2 = iDecimal(opr2).struct()
@@ -84,6 +132,14 @@
 
     return utils.normalize(struct)
   }
+  /* 除法
+   * @method
+   * @public
+   * @static
+   * @param {Number|DOMString|iDecimal|structPOJO} dividend
+   * @param {Number|DOMString|iDecimal|structPOJO} divisor 
+   * @returns {iDecimal}
+   */
   iDecimal.div = function(dividend, divisor){
     dividend = iDecimal(dividend).struct()
     divisor = iDecimal(divisor).struct()
@@ -108,6 +164,12 @@
 {"utils": function(require, exports){
   var cfg = require("global").cfg
 
+  /* 构造iDecimal内部结构体实例
+   * @method
+   * @internal
+   * @param {Number|DOMString|structPOJO} num 
+   * @returns {structPOJO}
+   */
   var structure = exports.structure = function(num){
     return structure[typeof(num)](num)
   }  
@@ -146,16 +208,34 @@
     }
   }
 
+  /* 零填充
+   * @method
+   * @internal
+   * @param {Number} count - 零的个数
+   * @returns {DOMString}
+   */
   var paddingZero = exports.paddingZero = function(count){
     if (count < 1) return ''
     return (0).toPrecision(count).replace('.', '')
   }
 
+  /* 转换为规格化的iDecimal实例
+   * @method
+   * @internal
+   * @param {structPOJO} struct
+   * @returns {iDecimal}
+   */
   var normalize = exports.normalize = function(struct){
     var tStruct = iDecimal(toString(struct)).struct()
     return iDecimal({s: tStruct.s, rs: tStruct.rs, m: tStruct.m, r: struct.r})
   }
 
+  /* 字符串输出
+   * @method
+   * @internal
+   * @param {structPOJO} struct
+   * @returns {DOMString}
+   */
   var toString = exports.toString = function(struct){
     var result = []
     for (var i = 0; i < struct.m.length; ++i){
@@ -186,6 +266,13 @@
   var utils = require("utils")
   var cfg = require("global").cfg
 
+
+  /* 对阶
+   * @method
+   * @internal
+   * @param {structPOJO} opr1
+   * @param {structPOJO} opr2
+   */
   exports.matchExp = function(opr1, opr2){
     var maxRs = Math.max(opr1.rs, opr2.rs)
     for (var i = 0, len = arguments.length; i < len; ++i){
@@ -195,9 +282,18 @@
     }
     opr1.rs = opr2.rs = maxRs
   }
+
+  /* 有效数域相加
+   * @method
+   * @internal
+   * @param {structPOJO} opr1
+   * @param {structPOJO} opr2
+   * @returns {structPOJO}
+   */
   var addSignificant = exports.addSignificant = function(opr1, opr2){
     return addSignificant[opr1.s*opr2.s](opr1, opr2)
   }
+  /* 同号-有效数域相加 */
   addSignificant["1"] = function(opr1, opr2){
     var cf = 0, sum = [], ceil = parseInt('1' + utils.paddingZero(cfg.digit)), floor = 0
     var s1 = opr1.s,
@@ -225,6 +321,7 @@
 	    m: sum
     }
   }
+  /* 异号-有效数域相加 */
   addSignificant["-1"] = function(opr1, opr2){
     var s1,s2,m1,m2
     var dVal = opr1.m.length - opr2.m.length
@@ -251,6 +348,13 @@
 	    m: sum
     }
   }
+  /* 有效数域相乘
+   * @method
+   * @internal
+   * @param {m} opr1
+   * @param {m} opr2
+   * @returns {iDecimal}
+   */
   exports.mulSignificant = function(m1, m2){
     var factors = []
     for (var i = 0, l = m1.length; i < l; ++i){
@@ -270,6 +374,13 @@
     return (n1 * n2).toString() + utils.paddingZero(cfg.digit*(i1 + i2))
   }
 
+  /* 有效数域相除
+   * @method
+   * @internal
+   * @param {structPOJO} m1
+   * @param {structPOJO} m2 
+   * @returns {structPOJO}
+   */
   var divSignificant = exports.divSignificant = function(m1, m2){
     var iDecimal = require("main").iDecimal
     var bias = 0, // bias为正数表示m2向m1最高位对齐，为负数表示m1向m2最高位对齐
@@ -321,6 +432,6 @@
 }, 
 "global": {
   cfg: {
-    digit: 5 // 位数
+    digit: 5 // 序列单元的位数
   }
 }}, ["global", "utils", "calc"]))
