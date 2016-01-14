@@ -1,7 +1,7 @@
 /*!
  * iDecimal is a standalone decimal library which to solve the problems like 0.2 + 0.1 === 0.30000000000000004.
  * @author : fsjohnhuang
- * @version: v0.0.1
+ * @version: v0.1.0
  * @license: MIT
  */
 ;(function (factory, deps, seq){
@@ -22,7 +22,7 @@
     window[k] = _deps["main"][k]
   }
 }(function (require, exports){
-  var VERSION = "0.0.1"
+  var VERSION = "0.1.0"
   var utils = require("utils")
   var calc = require("calc")
   var cfg = require("global").cfg
@@ -36,7 +36,8 @@
       return {
 	    s: s.s,
 	    rs: s.rs,
-	    m: [].concat(s.m)
+	    m: [].concat(s.m),
+	    r: s.r
       }
     }
   }
@@ -84,7 +85,22 @@
     return utils.normalize(struct)
   }
   iDecimal.div = function(dividend, divisor){
-    // TODO
+    dividend = iDecimal(dividend).struct()
+    divisor = iDecimal(divisor).struct()
+
+    var rs = dividend.rs - divisor.rs
+    calc.matchExp(dividend, divisor)
+    var dObj = calc.divSignificant(dividend, divisor)
+    rs += (cfg.digit - (dObj.rs + rs)%cfg.digit)%cfg.digit
+
+    var struct = iDecimal({s: dividend.s*divisor.s
+	    , rs: rs
+	    , m:dObj.m
+	    , r: iDecimal({s: dividend.s*divisor.s
+		    , rs: dObj.r.struct().rs
+		    , m: dObj.r.struct().m})}).struct()
+
+    return utils.normalize(struct)
   }
 
   exports.iDecimal = iDecimal
@@ -115,9 +131,10 @@
       m.push(parseInt(strNum.splice(0, cfg.digit).reverse().join('')))
     }
     return {
-	    s: /^-/.test(num) ? -1 : 1,
-	    rs: rs + additionalRs,
-	    m: m
+	    s: /^-/.test(num) ? -1 : 1, // 符号位
+	    rs: rs + additionalRs,      // 向右移位数
+	    m: m,			// 有效数序列
+	    r: null                     // 余数
     }
   }
   structure["object"] = function(num){
@@ -125,6 +142,7 @@
 	    s: num.s,
 	    rs: num.rs,
 	    m: num.m,
+	    r: num.r
     }
   }
 
@@ -134,7 +152,8 @@
   }
 
   var normalize = exports.normalize = function(struct){
-    return iDecimal(toString(struct))
+    var tStruct = iDecimal(toString(struct)).struct()
+    return iDecimal({s: tStruct.s, rs: tStruct.rs, m: tStruct.m, r: struct.r})
   }
 
   var toString = exports.toString = function(struct){
@@ -249,6 +268,55 @@
   }
   var mul = function(n1, i1, n2, i2){
     return (n1 * n2).toString() + utils.paddingZero(cfg.digit*(i1 + i2))
+  }
+
+  var divSignificant = exports.divSignificant = function(m1, m2){
+    var iDecimal = require("main").iDecimal
+    var bias = 0, // bias为正数表示m2向m1最高位对齐，为负数表示m1向m2最高位对齐
+	dVal = iDecimal({s:1, rs:0, m: m1.m}),
+	rem = dVal,
+	origDivisor = iDecimal({s:1, rs:0, m: m2.m}),
+	divisor = null,
+	over = false,
+	factors = []
+    while (!over){
+      // 高位对齐
+      bias = dVal.struct().m.length - origDivisor.struct().m.length
+      if (bias > 0 && dVal.struct().s !== -1){
+	var struct = origDivisor.struct()
+	struct.m.unshift(0)
+        divisor = iDecimal(struct)
+      }
+      else if ((bias === 0 && dVal.struct().s !== -1) || (bias > 0 && dVal.struct().s === -1)){
+	bias = 0
+        divisor = origDivisor
+      }
+      else{
+        break
+      }
+      // 减法
+      dVal = iDecimal.sub(rem, divisor)
+      if (dVal.struct().s !== -1){
+        rem = dVal
+	var factor = []
+        for (var i = 0; i < bias; ++i){
+	  factor.push([0]) 
+	}
+	factor.push([1])
+	factors.push(factor)
+      }
+    }
+    var sum = iDecimal(0)
+    for (var i = 0, len = factors.length; i < len; ++i){
+      sum = iDecimal.add(sum, {s:1,rs:0,m:factors[i]})
+    }
+
+    return {
+	    s: 1,
+	    rs: 0,
+	    m: sum.struct().m,
+	    r: rem
+    }
   }
 }, 
 "global": {

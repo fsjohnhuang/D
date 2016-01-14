@@ -148,7 +148,7 @@ describe("iDecimal", function(){
       })
     })
   })
-  describe("iDecimal.mul(minuend, substractor)", function(){
+  describe("iDecimal.mul(opr1, opr2)", function(){
     describe("args is Number type", function(){
       it("iDecimal.mul(0.1, -0.2)", function(){
         var expM = [20000], expRs = 5, expS = -1
@@ -165,6 +165,43 @@ describe("iDecimal", function(){
         expect(m).to.deep.equal(expM)
         expect(rs).to.be.equal(expRs)
         expect(s).to.be.equal(s)
+      })
+    })
+  })
+  describe("iDecimal.div(dividend, divisor)", function(){
+    describe("args is Number type", function(){
+      it("iDecimal.div(10, 2)", function(){
+        var expM = [5], expRs = 0, expS = 1
+        var d = iDecimal.div(10, 2).struct()
+        var m = d.m, rs = d.rs, s = d.s
+        expect(m).to.deep.equal(expM)
+        expect(rs).to.be.equal(expRs)
+        expect(s).to.be.equal(s)
+      })
+      it("iDecimal.div(0.02, 0.01)", function(){
+        var expM = [2], expRs = 0, expS = 1
+        var d = iDecimal.div(0.02, 0.01).struct()
+        var m = d.m, rs = d.rs, s = d.s
+        expect(m).to.deep.equal(expM)
+        expect(rs).to.be.equal(expRs)
+        expect(s).to.be.equal(s)
+      })
+      it("iDecimal.div(3, 0.2)", function(){
+        var expM = [15], expRs = 0, expS = 1
+        var d = iDecimal.div(3, 0.2).struct()
+        var m = d.m, rs = d.rs, s = d.s
+        expect(m).to.deep.equal(expM)
+        expect(rs).to.be.equal(expRs)
+        expect(s).to.be.equal(s)
+      })
+      it("iDecimal.div(-3, 2)", function(){
+        var expM = [1], expRs = 0, expS = -1, expR = "-1"
+        var d = iDecimal.div(-3, 2).struct()
+        var m = d.m, rs = d.rs, s = d.s
+        expect(m).to.deep.equal(expM)
+        expect(rs).to.be.equal(expRs)
+        expect(s).to.be.equal(s)
+        expect(d.r.toString()).to.be.equal(expR)
       })
     })
   })

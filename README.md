@@ -1,4 +1,4 @@
-iDecimal v0.0.1
+iDecimal v0.1.0
 =======
 **iDecimal** is a standalone decimal library which to solve the problems like 0.2 + 0.1 === 0.30000000000000004.
 
