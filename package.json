@@ -1,7 +1,7 @@
 {
-  "name": "iDecimal",
-  "version": "0.0.1",
-  "description": "iDecimal v0.0.1\r =======\r **iDecimal** is a standalone decimal library which to solve the problems like 0.2 + 0.1 === 0.30000000000000004.",
+  "name": "D",
+  "version": "0.2.0",
+  "description": "D v0.2.0\r =======\r **D** is a standalone decimal library which to solve the problems like 0.2 + 0.1 === 0.30000000000000004.",
   "directories": {
     "test": "test"
   },
@@ -10,14 +10,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fsjohnhuang/iDecimal.git"
+    "url": "git+https://github.com/fsjohnhuang/D.git"
   },
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/fsjohnhuang/iDecimal/issues"
+    "url": "https://github.com/fsjohnhuang/D/issues"
   },
-  "homepage": "https://github.com/fsjohnhuang/iDecimal#readme",
+  "homepage": "https://github.com/fsjohnhuang/D#readme",
   "devDependencies":{
     "chai": "^1.10.0",
     "mocha": "^2.1.0"
