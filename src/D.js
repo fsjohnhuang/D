@@ -199,7 +199,7 @@
     structure2str["decimal"] = function(s){
       var strM = m2str(s.m)
       if (s.rs){
-        strM = (strM.slice(0, -s.rs) || '0') + '.' + util.paddingZero(strM.length - s.rs) + strM
+        strM = (strM.slice(0, -s.rs) || '0') + '.' + util.paddingZero(s.rs - strM.length) + strM
         strM.replace(/0*$/g, '')
       }
       else{
