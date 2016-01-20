@@ -1,11 +1,11 @@
 /*!
  * D is a standalone decimal library which to solve the problems like 0.2 + 0.1 === 0.30000000000000004.
  * @author : fsjohnhuang
- * @version: v0.2.0
+ * @version: v0.3.0
  * @license: MIT
  */
 ;(function(m/*odules*/, o/*rder*/, e/*xport*/, n/*ame*/){
-  var VERSION = "0.2.0"
+  var VERSION = "0.3.0"
   var _m = {}, l = o.length
   for (var i = 0, k; i < o.length; ++i){
     k = o[i]
@@ -25,39 +25,34 @@
     var cfg = {
 	    digits: 8   // 存储单位的位数
     	} 
-    e.config = function(val){
-      if (val && typeof val === "object"){
+    var config = e.config = function(val){
+      return config[val && typeof val === "object" ? "set" : "get"](val)
+    }
+    config["set"] = function(val){
         for (var k in val){
           cfg[k] = val[k]
         }
-      }
-      else{
-	var cpy = {}
-        for (var k in cfg){
-          cpy[k] = cfg[k]
-        }
-	return cpy
-      }
+    }
+    config["get"] = function(val){
+	return r("util").cp(cfg)
     }
   },
   "D": function(r/*equire*/, e/*xport*/){
     var global    = r("global"),
         primitive = r("primitive"),
-        math      = r("math")
+        math      = r("math"),
+        util      = r("util")
 
-    var D = function(val){
+    function D(val){
       if (!(this instanceof D)) return new D(val)
 
       var structure = primitive.ctr(val)
       this.struct = function(){
-        return {s: structure.s,
-		rs: structure.rs,
-		m: [].concat(structure.m),
-		r: structure.r}
+        return util.cp(structure)
       }
     }
-    D.prototype.toString = function(){
-      return primitive.structure2str(this.struct())
+    D.prototype.toString = function(fmt){
+      return primitive.structure2str(this.struct(), fmt)
     }
 
     D.config = function(cfg){
@@ -184,19 +179,40 @@
       }
       return str.reverse().join('')
     }
-    var structure2str = e.structure2str = function(s){
-      return structure2str[hasRem(s) ? "fraction" : "decimal"](s)
+    
+    var structure2str = e.structure2str = function(s, fmt){
+      return structure2str[hasRem(s) ? (fmt === "mixed" ? "mixed-" : '') + "fraction" : "decimal"](s)
     }
+    // 真/假分数
+    // 123/2 或 1/2
     structure2str["fraction"] = function(s){
-      var strM = m2str(s.m)
-      strM = strM.replace(/^0*/g, '')
-      var nM = m2str(s.r.n.m)
-      nM = nM.replace(/^0*/g, '')
-      var dM = m2str(s.r.d.m)
-      dM = dM.replace(/^0*/g, '')
-      return [s.s === 1 ? '' : "-(", strM, '+', nM, '/', dM , ')'].join('')
+      var tpl = "${sign}${numerator}/${denominator}"
+
+      var math = r("math")
+      var p = math.mul({s: 1, m: s.m, rs: 0}, {s: 1, m: s.r.d.m, rs:0})
+      var numerator = m2str(math.add(p, {s: 1, m: s.r.n.m, rs:0}).m).replace(/^0*/g, '')
+      var denominator = m2str(s.r.d.m).replace(/^0*/g, '')
+
+      var vals = {sign: s.s === 1 ? '' : '-', numerator: numerator, denominator: denominator}
+      return util.fmt(tpl, vals)
     }
-    structure2str["decimal"] = function(s){
+    // 带分数
+    // 2+1/5 或 -(2+1/5)
+    structure2str["mixed-fraction"] = function(s){
+      var tpl = ["${num}+${numerator}/${denominator}", "-(${num}+${numerator}/${denominator})"]
+
+      var num = m2str(s.m)
+      var numerator = m2str(s.r.n.m).replace(/^0*/g, '')
+      var denominator = m2str(s.r.d.m).replace(/^0*/g, '')
+
+      var vals = {num: num, numerator: numerator, denominator: denominator}
+      return util.fmt(tpl[s.s>>>31], vals)
+    }
+    structure2str["decimal"] = function(s, f/*ractionDigits*/){
+      f = f|0 + s.rs
+       
+      var tpl = ["${sign}${decimal}", "${sign}${decimal}.${fraction}"]
+      
       var strM = m2str(s.m)
       if (s.rs){
         strM = (strM.slice(0, -s.rs) || '0') + '.' + util.paddingZero(s.rs - strM.length) + strM
@@ -225,20 +241,36 @@
       return ret
     }
 
-    var structureRem = e.structureRem = function(n/*umerator*/, d/*enominator*/){
-      return {
-	      n: util.extend(n) || {m:[0], rs:0},
-	      d: util.extend(d) || {m:[1], rs:0}
+    var structureRem = e.structureRem = function(n/*umerator*/, d/*enominator*/, g/*cd*/){
+      var rem = {
+	      n: util.cp(n) || {m:[0], rs:0},
+	      d: util.cp(d) || {m:[1], rs:0}
       }
+      if (g){
+        var math = r("math")
+        var numerator = {s: 1, m: rem.n.m, rs:0}
+        var denominator = {s: 1, m: rem.d.m, rs:0}
+        var gcd = math.gcd(numerator, denominator)
+        numerator = math.div(numerator, gcd, false)
+        denominator = math.div(denominator, gcd, false)
+        rem = {
+	      n: {m: numerator.m, rs: rem.n.rs},
+	      d: {m: denominator.m, rs: rem.d.rs}
+        }
+      }
+      return rem
     }
     var hasRem = e.hasRem = function(s){
-      return !(!s || !s.r || !s.r.n || !s.r.n.m || /0/.test(s.r.n.m + ''))
+      return !(!s || !s.r || !s.r.n || !s.r.n.m || /^[\s\u3000]*0?[\s\u3000]*$/.test(s.r.n.m + ''))
+    }
+    var isZero = e.isZero = function(s){
+      return !hasRem(s) && /^[\s\u3000]*0[\s\u3000]*$/.test(s.m)
     }
 
     var structureIL = e.structureIL = function(r/*ecurring number*/, rs/*right shift*/){
       return {
-	      r: util.extend(r) || [0],
-	      rs: util.extend(rs) || 0
+	      r: util.cp(r) || [0],
+	      rs: util.cp(rs) || 0
       }
     }
   },
@@ -382,10 +414,10 @@
       return sum
     }
 
-    e.div = function(s1, s2){
+    var div = e.div = function(s1, s2, gcd){
       matchRs(s1, s2)
       var sign = s1.s * s2.s
-      var s = _div(s1, s2)
+      var s = _div(s1, s2, gcd)
       return {
 	      s: sign,
 	      rs: 0,
@@ -393,16 +425,17 @@
 	      r: s.r
       }
     }
-    var _div = function(s1, s2){
+    var _div = function(s1, s2, gcd){
+      gcd = typeof gcd === "undefined" ? true : gcd
       var bias = 0, // bias为正数表示m2向m1最高位对齐，为负数表示m1向m2最高位对齐
-  	dVal = {s: 1, m: util.extend(s1.m), rs: 0},
+  	dVal = {s: 1, m: util.cp(s1.m), rs: 0},
   	rem = dVal,
-  	origDivisor = {s: 1, m: util.extend(s2.m), rs: 0},
+  	origDivisor = {s: 1, m: util.cp(s2.m), rs: 0},
   	divisor = null,
   	over = false,
   	factors = []
       while (!over){
-     	divisor = util.extend(origDivisor)
+     	divisor = util.cp(origDivisor)
         // 高位字节对齐
         bias = dVal.m.length - origDivisor.m.length
         if (bias > 0 && dVal.s !== -1){
@@ -435,17 +468,40 @@
   	    s: 1,
   	    rs: 0,
   	    m: sum.m,
-  	    r: primitive.structureRem({m: rem.m, rs: rem.rs}, {m: origDivisor.m, rs: origDivisor.rs})
+  	    r: primitive.structureRem({m: rem.m, rs: rem.rs}, {m: origDivisor.m, rs: origDivisor.rs}, gcd)
       }
+    }
+
+    // 求最大公约数
+    // http://www.cnblogs.com/visayafan/archive/2011/08/11/2135345.html
+    e.gcd = function(s1, s2){
+      return _gcd(true, {m: s1.m}, {r:{n:{m:s2.m}}})
+    }
+    var _gcd = function(isFirst, s1, s2){
+      return !primitive.hasRem(s2) && !isFirst 
+	      ? s1 
+	      : _gcd(false, {s:1, rs: 0, m: s2.r.n.m}, div({s:1, rs: 0, m: s1.m},{s:1, rs: 0, m: s2.r.n.m}, false))
     }
   },
   "util": function(r/*equire*/, e/*xport*/){
     var type = e.type = function(obj){
       var t = typeof obj
       if ("object" === t){
-        t = Object.prototype.toString.call(obj).replace(/\s*\[\s*object\s*/,'').replace(/\s*\]\s*$/,'').toLowerCase()
+        t = Object.prototype.toString.call(obj).replace(/\s*\[\s*object\s*/,'').replace(/\s*\]\s*$/,'')
+	if (obj === null){
+	    t = "null"
+	}
+	else if ("function" === typeof obj.constructor){
+          var ctorName = obj.constructor.toString()
+		  .replace(/\s*function\s*/, '')
+		  .replace(/\s*/g,'')
+		  .replace(/\s*\(.*/,'')
+	  if (ctorName){
+            t = ctorName
+          }
+	}
       }
-      return t
+      return t.toLowerCase()
     }
     var isArray = e.isArray = function(obj){
       return "array" === type(obj)
@@ -461,12 +517,18 @@
       if (1 > count) return ''
       return (0).toPrecision(count).replace('.', '')
     }
+    e.fmt = function(tpl, vals){
+      for (var k in vals){
+        tpl = tpl.replace(RegExp("\\$\\{" + k + "\\}", 'g'), vals[k])
+      }
+      return tpl
+    }
 
-    var extend = e.extend = function(orig){
+    var cp = e.cp = function(orig){
       var ret = isArray(orig) ? [] : {} 
       for (var k in orig){
 	if ("object" === typeof orig[k]){
-	  ret[k] = extend(orig[k])
+	  ret[k] = cp(orig[k])
 	}
 	else{
           ret[k] = orig[k]

@@ -63,3 +63,11 @@ var d1 = D(0.2)
 var result = D.minus(0.1, d1)
 console.log(result) // display 0.02
 ````
+
+## Changelog
+### v0.3.0
+实现带余数的加减乘除
+### v0.2.0
+重构代码结构
+### v0.1.0
+尝试实现整数加减乘和整除
