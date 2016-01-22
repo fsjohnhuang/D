@@ -180,8 +180,16 @@
       return str.reverse().join('')
     }
     
-    var structure2str = e.structure2str = function(s, fmt){
-      return structure2str[hasRem(s) ? (fmt === "mixed" ? "mixed-" : '') + "fraction" : "decimal"](s)
+    var structure2str = e.structure2str = function(s, o){
+      var doStructure2strs = ["fraction", "mixed-fraction", "decimal"]
+      var idx = hasRem(s) ? 0 : 2
+      if (util.isNum(o)){
+        idx = 2
+      }
+      else if (/mixed/.test(o)){
+        idx = 1
+      }
+      return structure2str[doStructure2strs[idx]](s, o)
     }
     // 真/假分数
     // 123/2 或 1/2
@@ -189,9 +197,9 @@
       var tpl = "${sign}${numerator}/${denominator}"
 
       var math = r("math")
-      var p = math.mul({s: 1, m: s.m, rs: 0}, {s: 1, m: s.r.d.m, rs:0})
-      var numerator = m2str(math.add(p, {s: 1, m: s.r.n.m, rs:0}).m).replace(/^0*/g, '')
-      var denominator = m2str(s.r.d.m).replace(/^0*/g, '')
+      var p = math.mul({s: 1, m: s.m, rs: 0}, {s: 1, m: s.r.d, rs:0})
+      var numerator = m2str(math.add(p, {s: 1, m: s.r.n, rs:0}).m).replace(/^0*/g, '')
+      var denominator = m2str(s.r.d).replace(/^0*/g, '')
 
       var vals = {sign: s.s === 1 ? '' : '-', numerator: numerator, denominator: denominator}
       return util.fmt(tpl, vals)
@@ -202,28 +210,63 @@
       var tpl = ["${num}+${numerator}/${denominator}", "-(${num}+${numerator}/${denominator})"]
 
       var num = m2str(s.m)
-      var numerator = m2str(s.r.n.m).replace(/^0*/g, '')
-      var denominator = m2str(s.r.d.m).replace(/^0*/g, '')
+      var numerator = m2str(s.r.n).replace(/^0*/g, '')
+      var denominator = m2str(s.r.d).replace(/^0*/g, '')
 
       var vals = {num: num, numerator: numerator, denominator: denominator}
       return util.fmt(tpl[s.s>>>31], vals)
     }
+    // 存在bug
     structure2str["decimal"] = function(s, f/*ractionDigits*/){
-      f = f|0 + s.rs
-       
-      var tpl = ["${sign}${decimal}", "${sign}${decimal}.${fraction}"]
+      var isUndefined = typeof f === 'undefined'
+      f = f|0
       
-      var strM = m2str(s.m)
-      if (s.rs){
-        strM = (strM.slice(0, -s.rs) || '0') + '.' + util.paddingZero(s.rs - strM.length) + strM
-        strM.replace(/0*$/g, '')
+      var tpl = ["${sign}${decimal}", "${sign}${decimal}.${fraction}"]
+      var tplIdx = 0
+      var decimal = '0',fraction,sign = s.s === 1 ? '' : '-'
+      var dVal4F = s.rs - f
+      if (dVal4F>>>31 && hasRem(s)){
+        // 当要求的小数位数大于数值自带的小数位数才计算余数
+	dVal4F *= -1
+	var n = rs(s.r.n, dVal4F)
+	var d = s.r.d
+        var quotient = r("math").div({s: 1, m: n, rs: 0}, {s: 1, m: d, rs: 0}, false)
+	var ret = r("math").round(quotient, dVal4F)
+	var retM = ls(ret.m, ret.rs)
+        var f = m2str(retM)
+        var strM = m2str(s.m)
+
+        if (s.rs){
+          strM = (strM.slice(0, -s.rs) || '0') + '.' + util.paddingZero(s.rs - strM.length) + strM
+          strM = strM.split('')
+          decimal = strM.splice(0, strM.indexOf('.')).join('')
+	  fraction = strM.splice(1, isUndefined ? strM.length : f).join('') + f.replace(/^0*/g, '')
+        }
+        else{
+  	  decimal = strM.replace(/^0*/g, '') || '0'
+          fraction = f
+        }
+	tplIdx = fraction ? 1 : 0
       }
       else{
-	strM = strM.replace(/^0*/g, '') 
+	var s = r("math").round(s, f)
+        var strM = m2str(s.m)
+        if (s.rs){
+          strM = (strM.slice(0, -s.rs) || '0') + '.' + util.paddingZero(s.rs - strM.length) + strM
+          strM = strM.split('')
+          decimal = strM.splice(0, strM.indexOf('.')).join('')
+	  fraction = strM.splice(1, isUndefined ? strM.length : f).join('')
+	  tplIdx = fraction ? 1 : 0
+        }
+        else{
+  	  decimal = strM.replace(/^0*/g, '') || '0'
+        }
       }
-      return (s.s === 1 ? '' : '-') + strM
+      
+      return util.fmt(tpl[tplIdx], {sign: sign, decimal: decimal, fraction: fraction})
     }
 
+    // 小数点右移
     var rs = e.rs = function(m/*antissa*/, c/*ount*/){
       var digits = global.config().digits
       var bCount = Math.floor(c/digits), 
@@ -240,38 +283,48 @@
       }
       return ret
     }
+    // 小数点左移
+    var ls = e.ls = function(m/*antissa*/, c/*ount*/){
+      var digits = global.config().digits
+      var bCount = c/digits|0, 
+	  rem = c%digits
+      var ret = null
+      if (rem){
+        ret = m2str(m).split('')
+        ret.splice(ret.length - rem, rem)
+        ret = str2m(ret.join(''))
+      }
+      else{
+	ret = [].concat(m)
+      }
+      ret.splice(0, bCount)
+      return ret.length && ret || [0]
+    }
 
     var structureRem = e.structureRem = function(n/*umerator*/, d/*enominator*/, g/*cd*/){
       var rem = {
-	      n: util.cp(n) || {m:[0], rs:0},
-	      d: util.cp(d) || {m:[1], rs:0}
+	      n: n || [0],
+	      d: d || [1]
       }
       if (g){
         var math = r("math")
-        var numerator = {s: 1, m: rem.n.m, rs:0}
-        var denominator = {s: 1, m: rem.d.m, rs:0}
+        var numerator = {s: 1, m: rem.n, rs:0}
+        var denominator = {s: 1, m: rem.d, rs:0}
         var gcd = math.gcd(numerator, denominator)
         numerator = math.div(numerator, gcd, false)
         denominator = math.div(denominator, gcd, false)
         rem = {
-	      n: {m: numerator.m, rs: rem.n.rs},
-	      d: {m: denominator.m, rs: rem.d.rs}
+	      n: numerator.m,
+	      d: denominator.m
         }
       }
       return rem
     }
     var hasRem = e.hasRem = function(s){
-      return !(!s || !s.r || !s.r.n || !s.r.n.m || /^[\s\u3000]*0?[\s\u3000]*$/.test(s.r.n.m + ''))
+      return !(!s || !s.r || !s.r.n || /^[\s\u3000]*0?[\s\u3000]*$/.test(s.r.n + ''))
     }
     var isZero = e.isZero = function(s){
       return !hasRem(s) && /^[\s\u3000]*0[\s\u3000]*$/.test(s.m)
-    }
-
-    var structureIL = e.structureIL = function(r/*ecurring number*/, rs/*right shift*/){
-      return {
-	      r: util.cp(r) || [0],
-	      rs: util.cp(rs) || 0
-      }
     }
   },
   "math": function(r/*equire*/, e/*xport*/){
@@ -326,7 +379,12 @@
       return add(s1, s2)
     }
     var _add = function(s1/*tructure*/,s2/*tructure*/){
-      return _add[s1.s*s2.s](s1, s2)
+      if (primitive.hasRem(s1) || primitive.hasRem(s2)){
+        return _add[s1.s*s2.s]["hasRem"](s1, s2)
+      }
+      else{
+        return _add[s1.s*s2.s](s1, s2)
+      }
     }
     /*同号-有效数域相加*/
     _add["1"] = function(opr1, opr2){
@@ -373,7 +431,7 @@
       for (var i = 0, len = m1.length; i < len; ++i){
         m = m1[i] - (m2[i]||0) + cf
         if (m < 0){
-  	m = Math.pow(10, digits) + m1[i] - (m2[i]||0) + cf
+  	  m = Math.pow(10, digits) + m1[i] - (m2[i]||0) + cf
           cf = -1
         }
         sum.push(m)
@@ -385,15 +443,74 @@
   	    m: sum
       }
     }
+    _add["1"]["hasRem"] = function(opr1, opr2){
+      // 整数部分计算
+      var integer = add({s: opr1.s, rs: opr1.rs, m: opr1.m}, 
+		      {s: opr2.s, rs: opr2.rs, m: opr2.m})
+      // 分数部分计算
+      var f1n, f2n, fn, fd
+      f1n = mul({s: 1, rs: 0, m: opr1.r && opr1.r.n || [0]}, {s: 1, rs: 0, m: opr2.r && opr2.r.d || [1]})
+      f2n = mul({s: 1, rs: 0, m: opr2.r && opr2.r.n || [0]}, {s: 1, rs: 0, m: opr1.r && opr1.r.d || [1]})
+      fn = add(f1n, f2n)
+      fd = mul({s: 1, rs: 0, m: opr1.r && opr1.r.d || [1]}, {s: 1, rs: 0, m: opr2.r && opr2.r.d || [1]})
+      var q = div(fn, fd)
+      var tmpInt = add({s: 1, rs: 0, m: integer.m}, {s: 1, rs: 0, m: q.m})
+      return {
+	      s: opr1.s,
+	      rs: integer.rs,
+	      m: tmpInt.m,
+	      r: q.r
+      }
+    }
+    _add["-1"]["hasRem"] = function(opr1, opr2){
+      var s1,s2,m1,m2
+      var dVal = opr1.m.length - opr2.m.length
+      if (!dVal){
+        dVal = opr1.m[opr1.m.length - 1] - opr2.m[opr2.m.length - 1]
+      }
+      s1 = arguments[dVal >= 0 ? 0 : 1].s
+      m1 = arguments[dVal >= 0 ? 0 : 1].m
+      m2 = arguments[dVal >= 0 ? 1 : 0].m
+      r1 = arguments[dVal >= 0 ? 0 : 1].r
+      r2 = arguments[dVal >= 0 ? 1 : 0].r
+      // 整数部分计算
+      var cf = 0, m = 0, sum = []
+      for (var i = 0, len = m1.length; i < len; ++i){
+        m = m1[i] - (m2[i]||0) + cf
+        if (m < 0){
+  	m = Math.pow(10, digits) + m1[i] - (m2[i]||0) + cf
+          cf = -1
+        }
+        sum.push(m)
+      }
+      // 分数部分计算
+      var f1n, f2n, fn, fd
+      f1n = mul({s: 1, rs: 0, m: r1 && r1.n || [0]}, {s: 1, rs: 0, m: r2 && r2.d || [1]})
+      f2n = mul({s: 1, rs: 0, m: r2 && r2.n || [0]}, {s: 1, rs: 0, m: r1 && r1.d || [1]})
+      fd = mul({s: 1, rs: 0, m: r1 && r1.d || [1]}, {s: 1, rs: 0, m: r2 && r2.d || [1]})
+      var fn = sub(f1n, f2n)
+      if (fn.s === -1){
+        f1n = add(f1n, fd)
+        fn = sub(f1n, {s: 1, m: f2n.m, rs: f2n.rs})
+	sum = sub({s:1, m: sum, rs: 0}, {s:1, m: [1], rs: 0}).m
+      }
 
-    e.mul = function(s1, s2){
+      return {
+  	    s: s1,
+  	    rs: opr1.rs,
+  	    m: sum,
+	    r: {n: fn.m, d: fd.m}
+      }
+    }
+
+    var mul = e.mul = function(s1, s2){
       var rs = s1.rs + s2.rs
       var sign = s1.s * s2.s
       var s = _mul(s1, s2)
       return {
 	      s: sign,
 	      rs: s.rs + rs,
-	      m: s.m,
+	      m: s.m && s.m.length && s.m || [0],
 	      r: s.r
       }
     }
@@ -421,7 +538,7 @@
       return {
 	      s: sign,
 	      rs: 0,
-	      m: s.m,
+	      m: s.m && s.m.length && s.m || [0],
 	      r: s.r
       }
     }
@@ -468,19 +585,31 @@
   	    s: 1,
   	    rs: 0,
   	    m: sum.m,
-  	    r: primitive.structureRem({m: rem.m, rs: rem.rs}, {m: origDivisor.m, rs: origDivisor.rs}, gcd)
+  	    r: primitive.structureRem(rem.m, origDivisor.m, gcd)
       }
     }
 
     // 求最大公约数
     // http://www.cnblogs.com/visayafan/archive/2011/08/11/2135345.html
     e.gcd = function(s1, s2){
-      return _gcd(true, {m: s1.m}, {r:{n:{m:s2.m}}})
+      return _gcd(true, {m: s1.m}, {r:{n:s2.m}})
     }
     var _gcd = function(isFirst, s1, s2){
       return !primitive.hasRem(s2) && !isFirst 
 	      ? s1 
-	      : _gcd(false, {s:1, rs: 0, m: s2.r.n.m}, div({s:1, rs: 0, m: s1.m},{s:1, rs: 0, m: s2.r.n.m}, false))
+	      : _gcd(false, {m: s2.r.n}, div({s:1, rs: 0, m: s1.m},{s:1, rs: 0, m: s2.r.n}, false))
+    }
+
+    // 四舍五入
+    e.round = function(s1, f/*ractionDigits*/){
+      f = ((f>>31)+1)*f|0 
+      f = (f ? f : s1.rs) + 1
+      var s2 = {s: s1.s, m: [5], rs: f}
+      var s = add(s1, s2)
+      var dVal = s.rs - f + 1
+      dVal = ((dVal>>31)+1)*dVal
+      var m = primitive.ls(s.m, dVal)
+      return {s: s.s, m: m, rs: s.rs - dVal}
     }
   },
   "util": function(r/*equire*/, e/*xport*/){
