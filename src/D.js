@@ -237,7 +237,7 @@
         var strM = m2str(s.m)
 
         if (s.rs){
-          strM = (strM.slice(0, -s.rs) || '0') + '.' + util.paddingZero(s.rs - strM.length) + strM
+          strM = (strM.slice(0, -s.rs) || '0') + '.' + util.paddingZero(s.rs - strM.length) + strM.slice(-s.rs)
           strM = strM.split('')
           decimal = strM.splice(0, strM.indexOf('.')).join('')
 	  fraction = strM.splice(1, isUndefined ? strM.length : f).join('') + f.replace(/^0*/g, '')
@@ -252,7 +252,7 @@
 	var s = r("math").round(s, f)
         var strM = m2str(s.m)
         if (s.rs){
-          strM = (strM.slice(0, -s.rs) || '0') + '.' + util.paddingZero(s.rs - strM.length) + strM
+          strM = (strM.slice(0, -s.rs) || '0') + '.' + util.paddingZero(s.rs - strM.length) + strM.slice(-s.rs)
           strM = strM.split('')
           decimal = strM.splice(0, strM.indexOf('.')).join('')
 	  fraction = strM.splice(1, isUndefined ? strM.length : f).join('')
